@@ -36,8 +36,7 @@ BLOCKED_KEY = "blocked"
 RECENTLY_LEFT_KEY = "recently_left"
 RECENTLY_STARTED_SANTAS_KEY = "recently_closed_santas"
 
-EMPTY_SECRET_SANTA_STR = f'{Emoji.SANTA}{Emoji.TREE} Nobody joined this Secret Santa yet! Use the "<b>join</b>" button below to join'
-
+EMPTY_SECRET_SANTA_STR = f'{Emoji.SANTA}{Emoji.TREE} لم ينضم أحد إلى هذا السر سانتا بعد! استخدم زر "<b>انضم</b>" أدناه للانضمام'
 
 class Time:
     WEEK_4 = 60 * 60 * 24 * 7 * 4
@@ -54,20 +53,20 @@ class Time:
 
 
 class Error:
-    SEND_MESSAGE_DISABLED = "have no rights to send a message"
-    REMOVED_FROM_GROUP = "bot was kicked from the"  # it might continue with "group chat" or "supergroup chat"
-    CANT_EDIT = "chat_write_forbidden"  # we receive this when we try to edit a message/answer a callback query but we are muted
-    MESSAGE_TO_EDIT_NOT_FOUND = "message to edit not found"
-    MESSAGE_NOT_MODIFIED = "message is not modified"
-    USER_BLOCKED_BOT = "bot was blocked by the user"
+    SEND_MESSAGE_DISABLED = "ليس لديك حقوق لإرسال رسالة"
+    REMOVED_FROM_GROUP = "تم طرد البوت من"  # قد يتبعها "دردشة المجموعة" أو "دردشة السوبرغروب"
+    CANT_EDIT = "chat_write_forbidden"  # نتلقى هذا عندما نحاول تعديل رسالة/الرد على استعلام رد ولكننا مكتومين
+    MESSAGE_TO_EDIT_NOT_FOUND = "الرسالة المراد تعديلها غير موجودة"
+    MESSAGE_NOT_MODIFIED = "الرسالة لم تتغير"
+    USER_BLOCKED_BOT = "تم حظر البوت من قبل المستخدم"
 
 
 class Commands:
-    PRIVATE = [BotCommand("help", "welcome message")]
+    PRIVATE = [BotCommand("help", "رسالة الترحيب")]
     GROUP_ADMINISTRATORS = [
-        BotCommand("newsanta", "create a new Secret Santa in this chat"),
-        BotCommand("cancel", "cancel any ongoing Secret Santa"),
-        BotCommand("hidecommands", "hide these commands"),
+        BotCommand("newsanta", "إنشاء سر سانتا جديد في هذه الدردشة"),
+        BotCommand("cancel", "إلغاء أي سر سانتا جارٍ"),
+        BotCommand("hidecommands", "إخفاء هذه الأوامر"),
     ]
 
 
@@ -75,7 +74,6 @@ updater = Updater(
     bot=ExtBot(
         token=config.telegram.token,
         defaults=Defaults(parse_mode=ParseMode.HTML, disable_web_page_preview=True),
-        # https://github.com/python-telegram-bot/python-telegram-bot/blob/8531a7a40c322e3b06eb943325e819b37ee542e7/telegram/ext/updater.py#L267
         request=Request(con_pool_size=config.telegram.get('workers', 1) + 4)
     ),
     workers=0,
@@ -115,7 +113,7 @@ def administrators(func):
     @wraps(func)
     def wrapped(update: Update, context: CallbackContext, *args, **kwargs):
         if update.effective_user.id not in get_admin_ids(context.bot, update.effective_chat.id):
-            logger.debug("admin check failed for callback <%s>", func.__name__)
+            logger.debug("فشل التحقق من المدير للرد <%s>", func.__name__)
             return
 
         return func(update, context, *args, **kwargs)
@@ -127,7 +125,7 @@ def superadmin(func):
     @wraps(func)
     def wrapped(update: Update, context: CallbackContext, *args, **kwargs):
         if update.effective_user.id not in config.telegram.admins:
-            logger.debug("superadmin check failed for callback <%s>", func.__name__)
+            logger.debug("فشل التحقق من السوبرادمن للرد <%s>", func.__name__)
             return
 
         return func(update, context, *args, **kwargs)
@@ -139,7 +137,7 @@ def users(func):
     @wraps(func)
     def wrapped(update: Update, context: CallbackContext, *args, **kwargs):
         if update.effective_user.id in get_admin_ids(context.bot, update.effective_chat.id):
-            logger.debug("user check failed")
+            logger.debug("فشل التحقق من المستخدم")
             return
 
         return func(update, context, *args, **kwargs)
@@ -152,11 +150,11 @@ def bot_restricted_check():
         @wraps(func)
         def wrapped(update: Update, context: CallbackContext, *args, **kwargs):
             if MUTED_KEY in context.chat_data:
-                logger.info("received an update from chat %d, but we are muted", update.effective_chat.id)
+                logger.info("استقبلت تحديث من الدردشة %d، لكننا مكتومون", update.effective_chat.id)
                 return
 
             if REMOVED_KEY in context.chat_data:
-                logger.info("received an update from chat %d, but we have been removed", update.effective_chat.id)
+                logger.info("استقبلت تحديث من الدردشة %d، لكننا تم إزالتنا", update.effective_chat.id)
                 return
 
             try:
@@ -164,15 +162,11 @@ def bot_restricted_check():
             except (TelegramError, BadRequest) as e:
                 error_str = str(e).lower()
                 if Error.REMOVED_FROM_GROUP in error_str:
-                    # we shouldn't receive these ever since we handle my_chat_member updates
-                    logger.info("removed from chat chat %d: cleaning up", update.effective_chat.id)
+                    logger.info("تمت الإزالة من الدردشة %d: تنظيف البيانات", update.effective_chat.id)
                     context.chat_data.pop(ACTIVE_SECRET_SANTA_KEY, None)
                 elif Error.SEND_MESSAGE_DISABLED in error_str or Error.CANT_EDIT in error_str:
-                    logger.info("can't send messages in chat %d: marking as muted", update.effective_chat.id)
+                    logger.info("لا يمكن إرسال الرسائل في الدردشة %d: يتم وضع علامة عليها كمكتومة", update.effective_chat.id)
                     context.chat_data[MUTED_KEY] = True
-
-                    # can't edit messages if muted
-                    # cancel_because_cant_send_messages(context, santa)
                 else:
                     raise e
 
@@ -188,9 +182,9 @@ def fail_with_message(answer_to_message=True):
                 return func(update, context, *args, **kwargs)
             except Exception as e:
                 error_str = str(e)
-                logger.error('error while running callback: %s', error_str, exc_info=True)
+                logger.error('حدث خطأ أثناء تنفيذ الرد: %s', error_str, exc_info=True)
 
-                error_str_message = f"Error during callback <code>{func.__name__}()</code> execution: <code>{utilities.escape(error_str)}</code>"
+                error_str_message = f"حدث خطأ أثناء تنفيذ الرد <code>{func.__name__}()</code>: <code>{utilities.escape(error_str)}</code>"
                 if answer_to_message and update.message:
                     update.message.reply_html(error_str_message)
                 elif answer_to_message and update.callback_query:
@@ -210,9 +204,9 @@ def fail_with_message_job(func):
             return func(context, *args, **kwargs)
         except Exception as e:
             error_str = str(e)
-            logger.error('error while running job: %s', error_str, exc_info=True)
+            logger.error('حدث خطأ أثناء تنفيذ المهمة: %s', error_str, exc_info=True)
 
-            error_str_message = f"Error during job callback <code>{func.__name__}()</code> execution: <code>{utilities.escape(error_str)}</code>"
+            error_str_message = f"حدث خطأ أثناء تنفيذ مهمة <code>{func.__name__}()</code>: <code>{utilities.escape(error_str)}</code>"
             if config.telegram.log_chat:
                 context.bot.send_message(config.telegram.log_chat, f"#{context.bot.username} {error_str_message}")
 
@@ -226,24 +220,21 @@ def get_secret_santa():
 
             santa = None
             if update.effective_chat.id < 0:
-                logger.debug("searching for an active secret santa in %d's chat_data...", update.effective_chat.id)
+                logger.debug("البحث عن سر سانتا نشط في بيانات الدردشة %d...", update.effective_chat.id)
                 if ACTIVE_SECRET_SANTA_KEY in context.chat_data:
                     santa = SecretSanta.from_dict(context.chat_data[ACTIVE_SECRET_SANTA_KEY])
             else:
-                # private chat
                 if update.callback_query:
-                    # private chat's inline button
                     santa_chat_id = int(context.matches[0].group(1))
                 else:
-                    # deeplink
                     santa_chat_id = int(context.matches[0].group(1))
 
-                logger.debug("searching for an active secret santa for %d in the dispatcher...", santa_chat_id)
+                logger.debug("البحث عن سر سانتا نشط لـ %d في مُعالج الرسائل...", santa_chat_id)
                 santa = find_santa_by_chat_id(context.dispatcher.chat_data, santa_chat_id)
 
             result_santa = func(update, context, santa, *args, **kwargs)
             if result_santa and isinstance(result_santa, SecretSanta):
-                logger.debug("saving returned SecretSanta object for chat %d...", result_santa.chat_id)
+                logger.debug("حفظ كائن SecretSanta المُرجع للدردشة %d...", result_santa.chat_id)
                 context.chat_data[ACTIVE_SECRET_SANTA_KEY] = result_santa.dict()
 
         return wrapped
@@ -265,10 +256,10 @@ def gen_participants_list(participants: dict, join_by: Optional[str] = None):
 
 
 def cancel_because_cant_send_messages(context: CallbackContext, santa: SecretSanta):
-    text = "<i>This Secret Santa was canceled because I can't send messages in this group</i>"
+    text = "<i>تم إلغاء هذا السر سانتا لأنني لا أستطيع إرسال الرسائل في هذه المجموعة</i>"
     if santa.get_participants_count():
         participants_list = gen_participants_list(santa.participants, join_by="\n")
-        text = f"{text}\nParticipants:\n\n{participants_list}"
+        text = f"{text}\nقائمة المشاركين:\n\n{participants_list}"
 
     return context.bot.edit_message_text(
         chat_id=santa.chat_id,
@@ -290,9 +281,9 @@ def update_secret_santa_message(context: CallbackContext, santa: SecretSanta):
     elif santa.started:
         participants_list = gen_participants_list(santa.participants)
 
-        base_text = '{santa} This Secret Santa has been started and everyone ' \
-                    '<a href="{bot_link}">received their match</a>!\n' \
-                    'Participants list:\n\n' \
+        base_text = '{santa} لقد بدأ هذا السر سانتا وقد ' \
+                    '<a href="{bot_link}">تلقى الجميع مطابقتهم</a>!\n' \
+                    'قائمة المشاركين:\n\n' \
                     '{participants}'
 
         text = base_text.format(
@@ -307,11 +298,11 @@ def update_secret_santa_message(context: CallbackContext, santa: SecretSanta):
 
         min_participants_text = ""
         if santa.get_missing_count() > 0:
-            min_participants_text = f". Other <b>{santa.get_missing_count()}</b> people are needed to start it"
+            min_participants_text = f". يحتاج {santa.get_missing_count()} شخص آخر لبدء هذا"
 
-        base_text = '{santa} Oh-oh! A new Secret Santa!\nParticipants list:\n\n{participants}\n\n' \
-                    'To join, use the "<b>join</b>" button below and then tap on "<b>start </b>".\n' \
-                    'Only {creator} can start this Secret Santa{min_participants}'
+        base_text = '{santa} أوه! سر سانتا جديد!\nقائمة المشاركين:\n\n{participants}\n\n' \
+                    'للانضمام، استخدم زر "<b>انضم</b>" أدناه ثم اضغط على "<b>ابدأ</b>".\n' \
+                    'فقط {creator} يمكنه بدء هذا السر سانتا{min_participants}'
 
         text = base_text.format(
             santa=Emoji.SANTA,
@@ -335,7 +326,7 @@ def update_secret_santa_message(context: CallbackContext, santa: SecretSanta):
             parse_mode=ParseMode.HTML
         )
     except (BadRequest, TelegramError) as e:
-        logger.error("exception while editing secret santa message (%d, %d): %s", santa.chat_id, santa.santa_message_id, str(e))
+        logger.error("استثناء أثناء تعديل رسالة سر سانتا (%d, %d): %s", santa.chat_id, santa.santa_message_id, str(e))
         return
 
     return edited_message
@@ -343,10 +334,9 @@ def update_secret_santa_message(context: CallbackContext, santa: SecretSanta):
 
 def create_new_secret_santa(update: Update, context: CallbackContext, santa: Optional[SecretSanta] = None):
     if santa:
-        text_message_exists = f"👆 There is already an <a href=\"{santa.link()}\">active Secret Santa</a> in " \
-                              f"this chat! " \
-                              f"You can ask {santa.creator_name_escaped} to cancel it using the message's " \
-                              f"buttons"
+        text_message_exists = f"👆 هناك بالفعل <a href=\"{santa.link()}\">سر سانتا نشط</a> في " \
+                              f"هذه الدردشة! " \
+                              f"يمكنك أن تطلب من {santa.creator_name_escaped} إلغاءه باستخدام أزرار الرسالة"
         try:
             context.bot.send_message(
                 update.effective_chat.id,
@@ -358,9 +348,8 @@ def create_new_secret_santa(update: Update, context: CallbackContext, santa: Opt
             if str(e).lower() != "replied message not found":
                 raise e
 
-            update.message.reply_html(f"{Emoji.SANTA} There is already an active Secret Santa"
-                                      f" in this chat! You can ask {santa.creator_name_escaped} "
-                                      f"(or an administrator) to cancel it using <code>/cancel</code>")
+            update.message.reply_html(f"{Emoji.SANTA} هناك بالفعل سر سانتا نشط في هذه الدردشة! يمكنك أن تطلب من {santa.creator_name_escaped} "
+                                      f"(أو مسؤول) إلغاءه باستخدام <code>/cancel</code>")
 
         return
 
@@ -395,7 +384,7 @@ def on_new_secret_santa_command(update: Update, context: CallbackContext, santa:
     logger.info("/newsanta command: %d -> %d", update.effective_user.id, update.effective_chat.id)
 
     if update.message and update.message.sender_chat:
-        update.message.reply_html(f"I'm sorry, anonymous users are not allowed to create a Secret Santa {Emoji.SAD}")
+        update.message.reply_html(f"عذراً، لا يُسمح للمستخدمين المجهولين بإنشاء سر سانتا {Emoji.SAD}")
         return
 
     return create_new_secret_santa(update, context, santa)
@@ -405,9 +394,7 @@ def on_new_secret_santa_command(update: Update, context: CallbackContext, santa:
 @bot_restricted_check()
 @get_secret_santa()
 def on_new_secret_santa_button(update: Update, context: CallbackContext, santa: Optional[SecretSanta] = None):
-    logger.info("new secret santa button: %d -> %d", update.effective_user.id, update.effective_chat.id)
-
-    # callback query updates always come from real users, so no need to check for sender_chat
+    logger.info("زر سر سانتا جديد: %d -> %d", update.effective_user.id, update.effective_chat.id)
 
     return create_new_secret_santa(update, context, santa)
 
@@ -426,7 +413,7 @@ def find_santa_by_chat_id(dispatcher_chat_data: dict, santa_chat_id: int):
             continue
 
         if ACTIVE_SECRET_SANTA_KEY not in chat_data:
-            logger.debug("chat_data for chat %d exists, but there is no active secret santa", santa_chat_id)
+            logger.debug("بيانات الدردشة للدردشة %d موجودة، لكن لا يوجد سر سانتا نشط", santa_chat_id)
             return
 
         santa_dict = chat_data[ACTIVE_SECRET_SANTA_KEY]
@@ -436,41 +423,30 @@ def find_santa_by_chat_id(dispatcher_chat_data: dict, santa_chat_id: int):
 @fail_with_message()
 def on_join_deeplink(update: Update, context: CallbackContext):
     santa_chat_id = int(context.matches[0].group(1))
-    logger.info("join deeplink from %d, chat id: %d", update.effective_user.id, santa_chat_id)
+    logger.info("رابط انضمام من %d، معرّف الدردشة: %d", update.effective_user.id, santa_chat_id)
 
     if find_key(context.dispatcher.chat_data, santa_chat_id, MUTED_KEY):
-        update.message.reply_html(f"It looks like I can't send messages in that group. I can't let "
-                                  f"new participants join until I can send messages there, I'm sorry {Emoji.SAD}")
+        update.message.reply_html(f"يبدو أنني لا أستطيع إرسال رسائل في تلك المجموعة. لا أستطيع السماح "
+                                  f"للمشاركين الجدد بالانضمام حتى أستطيع إرسال رسائل هناك، عذراً {Emoji.SAD}")
         return
 
     santa = find_santa_by_chat_id(context.dispatcher.chat_data, santa_chat_id)
     if not santa:
-        # this might happen if the bot was removed from the group: the "join" button is still there
-        # we should check if the chat is in the recently left chats in context.bot_data
         if RECENTLY_LEFT_KEY in context.bot_data and santa_chat_id in context.bot_data[RECENTLY_LEFT_KEY]:
-            logger.debug(f"no active santa in {santa_chat_id} and the chat appears among the recently left chats")
-            update.message.reply_html(f"It looks like I've been removed from this Secret Santa's group {Emoji.SAD}")
+            logger.debug(f"لا يوجد سانتا نشط في {santa_chat_id} والدردشة تظهر في قائمة الدردشات التي غادرتها مؤخراً")
+            update.message.reply_html(f"يبدو أنني تم إزالتي من مجموعة سر سانتا هذه {Emoji.SAD}")
         else:
-            # raise ValueError(f"user tried to join, but no secret santa is active in {santa_chat_id}")
-
-            # it might happen that the bot is removed from the group, and then added again (so the chat_id
-            # doesn't appear in the recently left groups), and an user uses the old "join" button from an
-            # old secret santa
-
-            logger.debug(f"no active santa in {santa_chat_id}")
-            update.message.reply_html(f"It looks like there's no active Secret Santa in this group {Emoji.SAD} "
-                                      f"you probably used a \"<b>join</b>\" button from an old/inactive Secret Santa")
+            logger.debug(f"لا يوجد سانتا نشط في {santa_chat_id}")
+            update.message.reply_html(f"يبدو أنه لا يوجد سر سانتا نشط في هذه المجموعة {Emoji.SAD} "
+                                      f"ربما استخدمت زر \"<b>انضم</b>\" من سر سانتا قديم/غير نشط")
         return
 
     if config.santa.max_participants and santa.get_participants_count() >= config.santa.max_participants:
-        text = f"I'm sorry, unfortunately {santa.inline_link('this Secret Santa')} has already reached the " \
-               f"max number of participants {Emoji.SAD}"
+        text = f"عذراً، للأسف {santa.inline_link('هذا السر سانتا')} قد بلغ الحد الأقصى من المشاركين {Emoji.SAD}"
         update.message.reply_html(text)
         return
 
     if santa.is_participant(update.effective_user):
-        # if already a participant, we remove the user first and then we check
-        # whether there's already participants with the same name
         santa.remove(update.effective_user)
 
     duplicate_name = santa.is_duplicate_name(update.effective_user.first_name)
@@ -479,23 +455,22 @@ def on_join_deeplink(update: Update, context: CallbackContext):
     context.dispatcher.chat_data[santa_chat_id][ACTIVE_SECRET_SANTA_KEY] = santa.dict()
 
     if santa.creator_id == update.effective_user.id:
-        wait_for_start_text = f"\nYou can start it anytime using the \"<b>start match</b>\" button in the group, " \
-                              f"once at least {config.santa.min_participants} people have joined"
+        wait_for_start_text = f"\nيمكنك بدؤه في أي وقت باستخدام زر \"<b>ابدأ المطابقة</b>\" في المجموعة، " \
+                              f"عندما ينضم على الأقل {config.santa.min_participants} شخص"
     else:
-        wait_for_start_text = f"Now wait for {santa.creator_name_escaped} to start it"
+        wait_for_start_text = f"انتظر الآن حتى يبدأ {santa.creator_name_escaped}"
 
     reply_markup = keyboards.joined_message(santa_chat_id)
     sent_message = update.message.reply_html(
-        f"{Emoji.TREE} You joined {santa.chat_title_escaped}'s {santa.inline_link('Secret Santa')}!\n"
-        f"{wait_for_start_text}. You will receive your match here, in this chat",
+        f"{Emoji.TREE} لقد انضممت إلى {santa.chat_title_escaped}'s {santa.inline_link('سر سانتا')}!\n"
+        f"{wait_for_start_text}. ستتلقى مطابقتك هنا، في هذه الدردشة",
         reply_markup=reply_markup
     )
 
     if duplicate_name:
-        sent_message.reply_html(f"By the way, there's another participant named \"{utilities.html_escape(duplicate_name)}\" "
-                                f"in this Secret Santa. You can change your name from your "
-                                f"Telegram's settings and use the \"update your name\" button above to avoid "
-                                f"confusion {Emoji.SNOWMAN_2}", quote=True)
+        sent_message.reply_html(f"بالمناسبة، يوجد مشارك آخر يحمل الاسم \"{utilities.html_escape(duplicate_name)}\" "
+                                f"في هذا السر سانتا. يمكنك تغيير اسمك من إعدادات Telegram الخاصة بك واستخدام "
+                                f"زر \"تحديث اسمك\" أعلاه لتجنب الارتباك {Emoji.SNOWMAN_2}", quote=True)
 
     santa.set_user_join_message_id(update.effective_user, sent_message.message_id)
 
@@ -506,21 +481,20 @@ def on_join_deeplink(update: Update, context: CallbackContext):
 @bot_restricted_check()
 @get_secret_santa()
 def on_leave_button_group(update: Update, context: CallbackContext, santa: Optional[SecretSanta] = None):
-    logger.debug("leave button in group: %d -> %d", update.effective_user.id, update.effective_chat.id)
+    logger.debug("زر مغادرة في المجموعة: %d -> %d", update.effective_user.id, update.effective_chat.id)
 
     if not santa.is_participant(update.effective_user):
-        update.callback_query.answer(f"{Emoji.FREEZE} You haven't joined this Secret Santa!", show_alert=True)
+        update.callback_query.answer(f"{Emoji.FREEZE} لم تنضم إلى هذا السر سانتا!", show_alert=True)
         return
 
-    # we need this for later
     last_join_message_id = santa.get_user_join_message_id(update.effective_user)
 
     santa.remove(update.effective_user)
     update_secret_santa_message(context, santa)
 
-    update.callback_query.answer(f"You have been removed from this Secret Santa")
+    update.callback_query.answer(f"لقد تمت إزالتك من هذا السر سانتا")
 
-    logger.debug("removing keyboard from last join message in private...")
+    logger.debug("إزالة لوحة المفاتيح من آخر رسالة انضمام في الخاصة...")
     context.bot.edit_message_reply_markup(update.effective_user.id, last_join_message_id, reply_markup=None)
 
     return santa
@@ -541,20 +515,18 @@ def save_recently_started_santa(bot_data: dict, santa: SecretSanta):
 @bot_restricted_check()
 @get_secret_santa()
 def on_match_button(update: Update, context: CallbackContext, santa: Optional[SecretSanta] = None):
-    logger.debug("start match button: %d -> %d", update.effective_user.id, update.effective_chat.id)
+    logger.debug("زر بدء المطابقة: %d -> %d", update.effective_user.id, update.effective_chat.id)
     if santa.creator_id != update.effective_user.id:
         update.callback_query.answer(
-            f"{Emoji.CROSS} Only {santa.creator_name} can use this button and start the Secret Santa match",
+            f"{Emoji.CROSS} فقط {santa.creator_name} يمكنه استخدام هذا الزر وبدء المطابقة في سر سانتا",
             show_alert=True,
             cache_time=Time.DAY_3
         )
         return
 
-    # we answer to the callback query so the user doesn't (hopefully) keep on tapping on the button
-    # while the matches are generated
-    update.callback_query.answer(f'{Emoji.HOURGLASS} Generating matches...', cache_time=5)
+    update.callback_query.answer(f'{Emoji.HOURGLASS} جاري إنشاء المطابقات...', cache_time=5)
 
-    sent_message = update.effective_message.reply_html(f'{Emoji.HOURGLASS} <i>Matching users...</i>')
+    sent_message = update.effective_message.reply_html(f'{Emoji.HOURGLASS} <i>جاري مطابقة المستخدمين...</i>')
 
     blocked_by = []
     for user_id, user_data in santa.participants.items():
@@ -562,17 +534,16 @@ def on_match_button(update: Update, context: CallbackContext, santa: Optional[Se
             context.bot.send_chat_action(user_id, ChatAction.TYPING)
         except (TelegramError, BadRequest) as e:
             if Error.USER_BLOCKED_BOT in str(e).lower():
-                logger.debug("%d blocked the bot", user_id)
+                logger.debug("%d حظر البوت", user_id)
             else:
-                # what to do?
-                logger.warning("can't send chat action to %d: %s", user_id, str(e))
+                logger.warning("لا يمكن إرسال إجراء الدردشة إلى %d: %s", user_id, str(e))
 
             blocked_by.append(utilities.mention_escaped_by_id(user_id, user_data["name"]))
 
     if blocked_by:
         users_list = ", ".join(blocked_by)
-        text = f"I can't start the Secret Santa because some users ({users_list}) have blocked me {Emoji.SAD}\n" \
-               f"They need to unblock me so I can send them their match"
+        text = f"لا أستطيع بدء سر سانتا لأن بعض المستخدمين ({users_list}) قد حظروني {Emoji.SAD}\n" \
+               f"يحتاجون إلى إلغاء حظرني حتى أستطيع إرسال مطابقتهم"
         sent_message.edit_text(text)
         return
 
@@ -585,37 +556,37 @@ def on_match_button(update: Update, context: CallbackContext, santa: Optional[Se
             break
         except (utilities.TooManyInvalidPicks, utilities.StuckOnLastItem) as e:
             failed_attempts += 1
-            logger.warning("drafting pairs error: %s (failed attempt %d/%d)", str(e), failed_attempts, max_attempts)
+            logger.warning("خطأ في إعداد الأزواج: %s (محاولة فاشلة %d/%d)", str(e), failed_attempts, max_attempts)
 
     if not matches:
-        logger.error("match list still empty (failed attempts: %d/%d)", failed_attempts, max_attempts)
+        logger.error("قائمة المطابقات لا تزال فارغة (محاولات فاشلة: %d/%d)", failed_attempts, max_attempts)
 
-        utilities.log_tg(context.bot, f"#drafting_error while generating pairs for chat {update.effective_chat.id}")
+        utilities.log_tg(context.bot, f"#drafting_error أثناء إنشاء الأزواج للدردشة {update.effective_chat.id}")
 
         text = f"{Emoji.WARN} <i>{update.effective_user.mention_html()}, " \
-               f"something went wrong during the Secret Santa draw. Please try again</i>"
+               f"حدث خطأ أثناء سحب سر سانتا. يرجى المحاولة مرة أخرى</i>"
         sent_message.edit_text(text)
         return
 
-    logger.debug("gathered pairs matches, failed attempts: %d", failed_attempts)
+    logger.debug("تم جمع أزواج المطابقات، محاولات فاشلة: %d", failed_attempts)
 
     for santa_id, present_receiver_id in matches:
         present_receiver_name = santa.get_user_name(present_receiver_id)
         present_receiver_mention = utilities.mention_escaped_by_id(present_receiver_id, present_receiver_name)
 
-        text = f"{Emoji.SANTA}{Emoji.PRESENT} You are {present_receiver_mention}'s <a href=\"{santa.link()}\">Secret Santa</a>!"
+        text = f"{Emoji.SANTA}{Emoji.PRESENT} أنت <a href=\"{santa.link()}\">سر سانتا</a> لـ {present_receiver_mention}!"
 
         match_message = context.bot.send_message(santa_id, text)
         santa.set_user_match_message_id(santa_id, match_message.message_id)
 
-    santa.start()  # doesn't do anything beside populating some datetimes
+    santa.start()
 
-    logger.debug("removing active secret santa from chat_data and saving a copy in bot_data...")
+    logger.debug("إزالة سر سانتا النشط من بيانات الدردشة وحفظ نسخة في بيانات البوت...")
     context.chat_data.pop(ACTIVE_SECRET_SANTA_KEY, None)
 
     save_recently_started_santa(context.bot_data, santa)
 
-    text = f"Everyone has received their match in their <a href=\"{BOT_LINK}\">private chats</a>!"
+    text = f"لقد تلقى الجميع مطابقتهم في <a href=\"{BOT_LINK}\">الدردشات الخاصة بهم</a>!"
     sent_message.edit_text(text)
 
     update_secret_santa_message(context, santa)
@@ -625,21 +596,18 @@ def on_match_button(update: Update, context: CallbackContext, santa: Optional[Se
 @bot_restricted_check()
 @get_secret_santa()
 def on_cancel_button(update: Update, context: CallbackContext, santa: Optional[SecretSanta] = None):
-    logger.debug("cancel button: %d -> %d", update.effective_user.id, update.effective_chat.id)
+    logger.debug("زر الإلغاء: %d -> %d", update.effective_user.id, update.effective_chat.id)
 
     if not santa:
-        # scenarios where this might happen: the bot is removed from the chat, then added back, and the
-        # user keeps using an old secret santa message's buttons
-        logger.warning("cancel button, but there is no active secret santa in the chat")
-        update.callback_query.edit_message_text("<i>This Secret Santa is no longer active</i>", reply_markup=None)
-        utilities.log_tg(context.bot, "cancel button used, but no active secret santa: check logs (especially whether "
-                                      "we have been previously removed from the chat or not)!")
+        logger.warning("زر الإلغاء، لكن لا يوجد سر سانتا نشط في الدردشة")
+        update.callback_query.edit_message_text("<i>لم يعد هذا السر سانتا نشطًا</i>", reply_markup=None)
+        utilities.log_tg(context.bot, "تم استخدام زر الإلغاء، لكن لا يوجد سر سانتا نشط: تحقق من السجلات!")
         return
 
     if santa.creator_id != update.effective_user.id:
         update.callback_query.answer(
-            f"{Emoji.CROSS} Only {santa.creator_name} can use this button. Administrators can use /cancel "
-            f"to cancel any active secret Santa",
+            f"{Emoji.CROSS} فقط {santa.creator_name} يمكنه استخدام هذا الزر. يمكن للمسؤولين استخدام /cancel "
+            f"لإلغاء أي سر سانتا نشط",
             show_alert=True,
             cache_time=Time.DAY_3
         )
@@ -647,7 +615,7 @@ def on_cancel_button(update: Update, context: CallbackContext, santa: Optional[S
 
     context.chat_data.pop(ACTIVE_SECRET_SANTA_KEY, None)
 
-    text = "<i>This Secret Santa has been canceled by its creator</i>"
+    text = "<i>تم إلغاء هذا السر سانتا بواسطة منشئه</i>"
     update.callback_query.edit_message_text(text, reply_markup=None)
 
 
@@ -655,17 +623,17 @@ def on_cancel_button(update: Update, context: CallbackContext, santa: Optional[S
 @bot_restricted_check()
 @get_secret_santa()
 def on_revoke_button(update: Update, context: CallbackContext, santa: Optional[SecretSanta] = None):
-    logger.debug("revoke button: %d -> %d", update.effective_user.id, update.effective_chat.id)
+    logger.debug("زر إلغاء: %d -> %d", update.effective_user.id, update.effective_chat.id)
     if santa.creator_id != update.effective_user.id:
         update.callback_query.answer(
-            f"{Emoji.CROSS} Only {santa.creator_name} can use this button",
+            f"{Emoji.CROSS} فقط {santa.creator_name} يمكنه استخدام هذا الزر",
             show_alert=True,
             cache_time=Time.DAY_3
         )
         return
 
     return update.callback_query.answer(
-        f"{Emoji.WARN} The ability to revoke already-sent matches has been temporarily suspended",
+        f"{Emoji.WARN} تم تعليق إمكانية إلغاء المطابقات التي تم إرسالها",
         show_alert=True,
         cache_time=Time.DAY_1
     )
@@ -680,9 +648,9 @@ def on_hide_commands_command(update: Update, context: CallbackContext):
         commands=[],
         scope=BotCommandScopeChatAdministrators(chat_id=update.effective_chat.id)
     )
-    update.message.reply_html("Done. It might take some time for them to disappear. "
-                              "You can use <code>/showcommands</code> if you want the group admins to be able to "
-                              "see them again")
+    update.message.reply_html("تم. قد يستغرق الأمر بعض الوقت لاختفائها. "
+                              "يمكنك استخدام <code>/showcommands</code> إذا كنت تريد أن يتمكن مسؤولو المجموعة من "
+                              "رؤيتها مرة أخرى")
 
 
 @fail_with_message(answer_to_message=False)
@@ -694,7 +662,7 @@ def on_show_commands_command(update: Update, context: CallbackContext):
         commands=Commands.GROUP_ADMINISTRATORS,
         scope=BotCommandScopeChatAdministrators(chat_id=update.effective_chat.id)
     )
-    update.message.reply_html("Done. It might take some time for them to appear")
+    update.message.reply_html("تم. قد يستغرق الأمر بعض الوقت لظهورها")
 
 
 @fail_with_message(answer_to_message=False)
@@ -704,12 +672,12 @@ def on_cancel_command(update: Update, context: CallbackContext, santa: Optional[
     logger.debug("/cancel command: %d -> %d", update.effective_user.id, update.effective_chat.id)
 
     if not santa:
-        update.message.reply_html("<i>There is no active Secret Santa</i>")
+        update.message.reply_html("<i>لا يوجد سر سانتا نشط</i>")
         return
 
     user_id = update.effective_user.id
     if not santa.creator_id != user_id and user_id not in get_admin_ids(context.bot, update.effective_chat.id):
-        logger.debug("user is not admin nor the creator of the secret santa")
+        logger.debug("المستخدم ليس مسؤولًا ولا منشئ السر سانتا")
         return
 
     context.chat_data.pop(ACTIVE_SECRET_SANTA_KEY, None)
@@ -718,42 +686,37 @@ def on_cancel_command(update: Update, context: CallbackContext, santa: Optional[
         context.bot.edit_message_text(
             chat_id=update.effective_chat.id,
             message_id=santa.santa_message_id,
-            text="<i>This Secret Santa has been canceled by its creator or by an administrator</i>",
+            text="<i>تم إلغاء هذا السر سانتا بواسطة منشئه أو بواسطة مسؤول</i>",
             reply_markup=None
         )
     except (TelegramError, BadRequest) as e:
-        logger.warning("error while editing canceled secret santa message: %s", str(e))
+        logger.warning("خطأ أثناء تعديل رسالة السر سانتا الملغاة: %s", str(e))
         if Error.MESSAGE_TO_EDIT_NOT_FOUND not in str(e).lower():
             raise e
 
     context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="<i>This chat's Secret Santa has ben canceled</i>",
+        text="<i>تم إلغاء سر سانتا في هذه الدردشة</i>",
         reply_to_message_id=santa.santa_message_id,
-        allow_sending_without_reply=True,  # send the message anyway even if the secret santa message has been deleted
+        allow_sending_without_reply=True,
     )
 
 
 def private_chat_button():
-    # MUST be placed after @get_secret_santa()
     def real_decorator(func):
         @wraps(func)
         def wrapped(update: Update, context: CallbackContext, santa: Optional[SecretSanta], *args, **kwargs):
             santa_chat_id = int(context.matches[0].group(1))
-            logger.debug("private chat button, chat_id: %d", santa_chat_id)
+            logger.debug("زر الدردشة الخاصة، معرّف الدردشة: %d", santa_chat_id)
 
             if not santa:
-                # if there is no santa in that chat (has already been started), the user will still be able to
-                # use these buttons, because we do not remove them when a secret santa is started
-                # we remove them just when they're used and there is no active secret santa
-                logger.debug("user tapped on a private chat button, but there is no active secret santa for that chat")
-                update.callback_query.answer(f"This chat's Secret Santa is no longer valid", show_alert=True)
+                logger.debug("المستخدم ضغط على زر الدردشة الخاصة، لكن لا يوجد سر سانتا نشط لتلك الدردشة")
+                update.callback_query.answer(f"سر سانتا هذه الدردشة لم يعد صالحاً", show_alert=True)
                 update.callback_query.edit_message_reply_markup(reply_markup=None)
                 return
 
             if not santa.is_participant(update.effective_user):
-                # maybe the user left from the group's message
-                update.callback_query.answer(f"{Emoji.FREEZE} You are not participating in this Secret Santa!",
+                update.callback_query.answer(f"{Emoji.FREEZE} لم تشارك في هذا السر سانتا!",
                                              show_alert=True)
                 update.callback_query.edit_message_reply_markup(reply_markup=None)
                 return
@@ -768,7 +731,7 @@ def private_chat_button():
 @get_secret_santa()
 @private_chat_button()
 def on_update_name_button_private(update: Update, context: CallbackContext, santa: SecretSanta):
-    logger.debug("update name button in private: %d (santa chat id: %d)", update.effective_user.id, santa.chat_id)
+    logger.debug("زر تحديث الاسم في الدردشة الخاصة: %d (معرّف دردشة سانتا: %d)", update.effective_user.id, santa.chat_id)
 
     name = update.effective_user.first_name[:NAME_MAX_LENGTH]
     name_updated = False
@@ -777,9 +740,8 @@ def on_update_name_button_private(update: Update, context: CallbackContext, sant
         santa.set_user_name(update.effective_user, name)
         name_updated = True
 
-    update.callback_query.answer(f"Your name has been updated to: {name}\n\nThis option allows you to change your "
-                                 f"Telegram name and update it in the list (helpful if there are participants with "
-                                 f"similar names)", show_alert=True)
+    update.callback_query.answer(f"تم تحديث اسمك إلى: {name}\n\nتتيح لك هذه الخيار تغيير اسمك في Telegram وتحديثه في القائمة "
+                                 f"(مفيد إذا كان هناك مشاركون يحملون أسماء مشابهة)", show_alert=True)
 
     if name_updated:
         try:
@@ -787,7 +749,7 @@ def on_update_name_button_private(update: Update, context: CallbackContext, sant
         except (TelegramError, BadRequest) as e:
             if Error.MESSAGE_NOT_MODIFIED not in e.message:
                 raise e
-            logger.warning("update name button in private: secret santa message was not modified after usage")
+            logger.warning("زر تحديث الاسم في الدردشة الخاصة: لم يتم تعديل رسالة سانتا السر بعد الاستخدام")
 
         return santa
 
@@ -796,12 +758,12 @@ def on_update_name_button_private(update: Update, context: CallbackContext, sant
 @get_secret_santa()
 @private_chat_button()
 def on_leave_button_private(update: Update, context: CallbackContext, santa: SecretSanta):
-    logger.debug("leave button in private: %d (santa chat id: %d)", update.effective_user.id, santa.chat_id)
+    logger.debug("زر مغادرة في الدردشة الخاصة: %d (معرّف دردشة سانتا: %d)", update.effective_user.id, santa.chat_id)
 
     santa.remove(update.effective_user)
 
-    text = f"{Emoji.FREEZE} You have been removed from {santa.chat_title_escaped}'s " \
-           f"<a href=\"{santa.link()}\">Secret Santa</a>"
+    text = f"{Emoji.FREEZE} لقد تمت إزالتك من {santa.chat_title_escaped}'s " \
+           f"<a href=\"{santa.link()}\">سر سانتا</a>"
     update.callback_query.edit_message_text(text, reply_markup=None)
 
     try:
@@ -809,20 +771,17 @@ def on_leave_button_private(update: Update, context: CallbackContext, santa: Sec
     except (TelegramError, BadRequest) as e:
         if Error.MESSAGE_NOT_MODIFIED not in e.message:
             raise e
-        logger.warning("leave button in private: secret santa message was not modified after usage")
+        logger.warning("زر مغادرة في الدردشة الخاصة: لم يتم تعديل رسالة سانتا السر بعد الاستخدام")
 
     return santa
 
 
 @fail_with_message(answer_to_message=False)
 def on_supergroup_migration(update: Update, context: CallbackContext):
-    # we receive two updates when a migration happens: one with migrate_from_chat_id, and one with migrate_to_chat_id
-    # we process only the one with migrate_to_chat_id, because effective_chat.id for this
-    # update is the old chat id, therefore its chat_data contains the populated chat data
     if not update.message.migrate_to_chat_id:
         return
 
-    logger.info(f"supergroup migration: {update.effective_chat.id} -> {update.message.migrate_to_chat_id}")
+    logger.info(f"ترحيل السوبرغروب: {update.effective_chat.id} -> {update.message.migrate_to_chat_id}")
 
     old_chat_id = update.effective_chat.id
     new_chat_id = update.message.migrate_to_chat_id
@@ -830,12 +789,10 @@ def on_supergroup_migration(update: Update, context: CallbackContext):
     if ACTIVE_SECRET_SANTA_KEY not in context.chat_data:
         return
 
-    logger.debug("old chat_id %d has an ongoing secret santa", old_chat_id)
+    logger.debug("معرّف الدردشة القديم %d لديه سر سانتا جارٍ", old_chat_id)
 
     santa_dict = context.chat_data.pop(ACTIVE_SECRET_SANTA_KEY)
     old_santa = SecretSanta.from_dict(santa_dict)
-
-    # the api doesn't allow to delete the old santa message because the old group is no longer available
 
     new_secret_santa = SecretSanta(
         origin_message_id=update.effective_message.message_id,
@@ -846,42 +803,40 @@ def on_supergroup_migration(update: Update, context: CallbackContext):
         participants=old_santa.participants
     )
 
-    logger.debug("sending new message...")
+    logger.debug("إرسال رسالة جديدة...")
     reply_markup = keyboards.secret_santa(new_chat_id, context.bot.username)
     sent_message = context.bot.send_message(new_chat_id, EMPTY_SECRET_SANTA_STR, reply_markup=reply_markup)
     new_secret_santa.santa_message_id = sent_message.message_id
 
-    logger.debug("saving new chat_data for new supergroup %d...", new_chat_id)
+    logger.debug("حفظ بيانات دردشة جديدة للمجموعة السوبرغروب %d...", new_chat_id)
     context.dispatcher.chat_data[new_chat_id] = {ACTIVE_SECRET_SANTA_KEY: new_secret_santa.dict()}
 
-    # we need to update it as soon as we send it because there might be existing participants to list
-    logger.debug("editing new message...")
+    logger.debug("تحديث الرسالة الجديدة...")
     update_secret_santa_message(context, new_secret_santa)
 
 
 @fail_with_message(answer_to_message=False)
 def on_new_group_chat(update: Update, context: CallbackContext):
-    logger.info("new group chat: %d", update.effective_chat.id)
+    logger.info("دردشة مجموعة جديدة: %d", update.effective_chat.id)
 
     if config.telegram.exit_unknown_groups and update.effective_user.id not in config.telegram.admins:
-        logger.info("unauthorized: leaving...")
+        logger.info("غير مصرح: مغادرة...")
         update.effective_chat.leave()
         return
 
-    # always pop this key
     context.chat_data.pop(REMOVED_KEY, None)
 
     if RECENTLY_LEFT_KEY in context.bot_data:
-        logger.debug("removing group from recently left groups list...")
+        logger.debug("إزالة المجموعة من قائمة الدردشات التي غادرتها مؤخراً...")
         context.bot_data[RECENTLY_LEFT_KEY].pop(update.effective_chat.id, None)
 
     if not config.santa.start_button_on_new_group:
         return
 
-    text = f"Hello everyone! I'm a bot that helps group chats to organize their " \
-           f"Secret Santas {Emoji.SANTA}{Emoji.SHH}\n" \
-           f"Anyone can use the button below to start a new one. Alternatively, the <code>/newsanta</code> command " \
-           f"can be used"
+    text = f"مرحبًا بالجميع! أنا بوت يساعد مجموعات الدردشات في تنظيم " \
+           f"سر سانتا {Emoji.SANTA}{Emoji.SHH}\n" \
+           f"يمكن لأي شخص استخدام الزر أدناه لبدء واحد جديد. بدلاً من ذلك، يمكن استخدام الأمر <code>/newsanta</code> " \
+           f"لبدء واحد جديد"
 
     update.message.reply_html(
         text,
@@ -892,13 +847,13 @@ def on_new_group_chat(update: Update, context: CallbackContext):
 
 @fail_with_message()
 def on_help(update: Update, _):
-    logger.info("/start or /help from: %s (text: %s)", update.effective_user.id, update.message.text)
+    logger.info("/start أو /help من: %s (النص: %s)", update.effective_user.id, update.message.text)
 
     source_code = "https://github.com/zeroone2numeral2/tg-secret-santa-bot"
-    text = f"Hello {utilities.html_escape(update.effective_user.first_name)}!" \
-           f"\nI can help you organize a Secret Santa 🤫🎅🏼🎁 in your group chats :)\n" \
-           f"Just add me to a chat and use <code>/newsanta</code> to start a new Secret Santa." \
-           f"\n\nSource code <a href=\"{source_code}\">here</a>"
+    text = f"مرحبًا {utilities.html_escape(update.effective_user.first_name)}!" \
+           f"\nيمكنني مساعدتك في تنظيم سر سانتا 🤫🎅🏼🎁 في مجموعاتك الدردشات :)\n" \
+           f"فقط أضفني إلى دردشة واستخدم <code>/newsanta</code> لبدء سر سانتا جديد." \
+           f"\n\nالكود المصدر <a href=\"{source_code}\">هنا</a>"
 
     update.message.reply_html(text)
 
@@ -918,7 +873,7 @@ def admin_ongoing_command(update: Update, context: CallbackContext):
         santa = SecretSanta.from_dict(chat_data[ACTIVE_SECRET_SANTA_KEY])
         participants_count += santa.get_participants_count()
 
-    text = f"• ongoing secret santas: {santa_count} ({participants_count} participants)"
+    text = f"• أسر سانتا الجارية: {santa_count} ({participants_count} مشارك)"
 
     if RECENTLY_STARTED_SANTAS_KEY in context.bot_data:
         recently_started_chats_count = len(context.bot_data[RECENTLY_STARTED_SANTAS_KEY])
@@ -926,15 +881,14 @@ def admin_ongoing_command(update: Update, context: CallbackContext):
         for _, santas_data in context.bot_data[RECENTLY_STARTED_SANTAS_KEY].items():
             recently_started_santas_count += len(santas_data)
 
-        text = f"{text}\n• recently started secret santas: {recently_started_santas_count} in " \
-               f"{recently_started_chats_count} groups"
+        text = f"{text}\n• أسر سانتا التي بدأت مؤخرًا: {recently_started_santas_count} في " \
+               f"{recently_started_chats_count} مجموعة"
 
     update.message.reply_html(text)
 
 
 def allowed(permission: Optional[bool]):
     if permission is None:
-        # None means it's enabled
         return True
 
     return permission
@@ -958,65 +912,51 @@ def was_unmuted(chat_member_update: ChatMemberUpdated):
 
 @fail_with_message(answer_to_message=False)
 def on_my_chat_member_update(update: Update, context: CallbackContext):
-    logger.debug("my_chat_member update in %d", update.my_chat_member.chat.id)
+    logger.debug("تحديث العضو في الدردشة %d", update.my_chat_member.chat.id)
     my_chat_member = update.my_chat_member
 
     if my_chat_member.chat.id > 0:
-        # status == ChatMember.LEFT -> bot was blocked
-        # status == ChatMember.MEMBER-> bot was unblocked
         if my_chat_member.new_chat_member.status in (ChatMember.LEFT, ChatMember.KICKED):
-            logger.debug("bot was blocked by %d (new chat_member status: %s)", my_chat_member.chat.id, my_chat_member.new_chat_member.status)
+            logger.debug("تم حظر البوت بواسطة %d (حالة العضو الجديد: %s)", my_chat_member.chat.id, my_chat_member.new_chat_member.status)
             context.user_data[BLOCKED_KEY] = True
         elif my_chat_member.new_chat_member.status == ChatMember.MEMBER:
-            logger.debug("bot was unblocked by %d", my_chat_member.chat.id)
+            logger.debug("تم إلغاء حظر البوت بواسطة %d", my_chat_member.chat.id)
             context.user_data.pop(BLOCKED_KEY, None)
         else:
-            logger.debug("no relevant change happened (private chat): %s", my_chat_member)
+            logger.debug("لا تغيير ذي صلة حدث (دردشة خاصة): %s", my_chat_member)
 
         return
 
-    # from pprint import pprint
-    # pprint(update.to_dict())
-
     if my_chat_member.new_chat_member.status == ChatMember.LEFT:
-        # we receive this kind of update also when the group is deleted
         logger.debug("old_chat_member: %s", my_chat_member.old_chat_member)
         logger.debug("new_chat_member: %s", my_chat_member.new_chat_member)
-        logger.info("bot removed from %d, removing chat_data...", my_chat_member.chat.id)
+        logger.info("تمت إزالة البوت من %d، يتم إزالة بيانات الدردشة...", my_chat_member.chat.id)
         context.chat_data.pop(ACTIVE_SECRET_SANTA_KEY, None)
         context.chat_data.pop(MUTED_KEY, None)
 
         now = utilities.now()
 
-        # keep track that we have been removed from the chat
         context.chat_data[REMOVED_KEY] = now
 
         if RECENTLY_LEFT_KEY not in context.bot_data:
             context.bot_data[RECENTLY_LEFT_KEY] = {}
         context.bot_data[RECENTLY_LEFT_KEY][my_chat_member.chat.id] = now
     elif was_muted(my_chat_member):
-        logger.debug("bot muted in %d", my_chat_member.chat.id)
+        logger.debug("تم كتم البوت في %d", my_chat_member.chat.id)
         context.chat_data[MUTED_KEY] = True
-
-        # muted -> can't edit messages either
-        #
-        # if ongoing_secret_santa:
-        #     logger.debug("ongoing secret santa: editing message...")
-        #     santa = SecretSanta.from_dict(ongoing_secret_santa)
-        #     cancel_because_cant_send_messages(context, santa)
     elif was_unmuted(my_chat_member):
-        logger.debug("bot unmuted in %d", my_chat_member.chat.id)
+        logger.debug("تم إلغاء كتم البوت في %d", my_chat_member.chat.id)
         context.chat_data.pop(MUTED_KEY, None)
     else:
-        logger.debug("no relevant change happened (group chat): %s", my_chat_member)
+        logger.debug("لا تغيير ذي صلة حدث (دردشة جماعية): %s", my_chat_member)
 
 
 def secret_santa_expired(context: CallbackContext, santa: SecretSanta):
     if not santa.started:
-        text = f"<i>This Secret Santa expired ({config.santa.timeout} days has passed from its creation)</i>"
+        text = f"<i>انتهت صلاحية هذا السر سانتا ({config.santa.timeout} يوم قد مضى منذ إنشائه)</i>"
     else:
         participants_list = gen_participants_list(santa.participants)
-        text = '{hourglass} This Secret Santa has been closed. Participants list:\n\n{participants}'.format(
+        text = '{hourglass} تم إغلاق هذا السر سانتا. قائمة المشاركين:\n\n{participants}'.format(
             hourglass=Emoji.HOURGLASS,
             participants="\n".join(participants_list)
         )
@@ -1029,7 +969,7 @@ def secret_santa_expired(context: CallbackContext, santa: SecretSanta):
             reply_markup=None
         )
     except (BadRequest, TelegramError) as e:
-        logger.error("exception while closing secret santa message (%d, %d): %s", santa.chat_id, santa.santa_message_id, str(e))
+        logger.error("استثناء أثناء إغلاق رسالة السر سانتا (%d, %d): %s", santa.chat_id, santa.santa_message_id, str(e))
         return
 
     return edited_message
@@ -1037,7 +977,7 @@ def secret_santa_expired(context: CallbackContext, santa: SecretSanta):
 
 @fail_with_message_job
 def close_old_secret_santas(context: CallbackContext):
-    logger.info("inactive secret santa job...")
+    logger.info("وظيفة تنظيف سر سانتا الغير نشط...")
 
     for chat_id, chat_data in context.dispatcher.chat_data.items():
         if ACTIVE_SECRET_SANTA_KEY not in chat_data:
@@ -1051,22 +991,22 @@ def close_old_secret_santas(context: CallbackContext):
             continue
 
         if MUTED_KEY in chat_data:
-            logger.info("can't edit chat %d's expired santa message: the bot is marked as muted", chat_id)
+            logger.info("لا يمكن تعديل رسالة سانتا المنتهية في الدردشة %d: البوت موضح كمكتوم", chat_id)
         else:
             secret_santa_expired(context, santa)
 
-        logger.debug("popping secret santa from chat %d", chat_id)
+        logger.debug("إزالة سر سانتا من الدردشة %d", chat_id)
         chat_data.pop(ACTIVE_SECRET_SANTA_KEY, None)
 
-    logger.info("...cleanup job end")
+    logger.info("...انتهت وظيفة التنظيف")
 
 
 @fail_with_message_job
 def bot_data_cleanup(context: CallbackContext):
-    logger.info("executing job...")
+    logger.info("تنفيذ وظيفة التنظيف...")
 
     if RECENTLY_LEFT_KEY in context.bot_data:
-        logger.info("cleaning up %s...", RECENTLY_LEFT_KEY)
+        logger.info("تنظيف %s...", RECENTLY_LEFT_KEY)
 
         chat_ids_to_pop = []
         for chat_id, left_dt in context.dispatcher.bot_data[RECENTLY_LEFT_KEY].items():
@@ -1077,16 +1017,16 @@ def bot_data_cleanup(context: CallbackContext):
 
             chat_ids_to_pop.append(chat_id)
 
-        logger.debug("%d chats to pop", len(chat_ids_to_pop))
+        logger.debug("%d دردشات لإزالتها", len(chat_ids_to_pop))
         for chat_id in chat_ids_to_pop:
-            logger.debug("popping chat %d from recently left chats dict", chat_id)
+            logger.debug("إزالة الدردشة %d من قائمة الدردشات التي غادرتها مؤخراً", chat_id)
             context.dispatcher.bot_data[RECENTLY_LEFT_KEY].pop(chat_id, None)
 
     if RECENTLY_STARTED_SANTAS_KEY in context.bot_data:
-        logger.info("cleaning up %s...", RECENTLY_STARTED_SANTAS_KEY)
+        logger.info("تنظيف %s...", RECENTLY_STARTED_SANTAS_KEY)
 
         chat_ids_to_pop = []
-        logger.debug("currently stored chats: %d", len(context.bot_data[RECENTLY_STARTED_SANTAS_KEY]))
+        logger.debug("عدد الدردشات المخزنة حالياً: %d", len(context.bot_data[RECENTLY_STARTED_SANTAS_KEY]))
         for chat_id, chat_santas in context.bot_data[RECENTLY_STARTED_SANTAS_KEY].items():
             santa_ids_to_pop = []
             for santa_message_id, santa_dict in chat_santas.items():
@@ -1098,21 +1038,20 @@ def bot_data_cleanup(context: CallbackContext):
 
                 santa_ids_to_pop.append(santa_message_id)
 
-            logger.debug("%d santa_ids to pop", len(santa_ids_to_pop))
+            logger.debug("%d santa_ids لإزالتها", len(santa_ids_to_pop))
             for santa_id in santa_ids_to_pop:
-                logger.debug("popping santa_id %d from chat_id %d", santa_id, chat_id)
+                logger.debug("إزالة santa_id %d من chat_id %d", santa_id, chat_id)
                 chat_santas.pop(santa_id, None)
 
             if not chat_santas:
-                # the chat dict is now empty, we can remove it
                 chat_ids_to_pop.append(chat_id)
 
-        logger.debug("%d chat_ids to pop", len(chat_ids_to_pop))
+        logger.debug("%d chat_ids لإزالتها", len(chat_ids_to_pop))
         for chat_id in chat_ids_to_pop:
-            logger.debug("popping chat_id %d because its dict is now empty", chat_id)
+            logger.debug("إزالة chat_id %d لأن dict الخاص به الآن فارغ", chat_id)
             context.bot_data[RECENTLY_STARTED_SANTAS_KEY].pop(chat_id, None)
 
-    logger.info("...job execution end")
+    logger.info("...انتهت تنفيذ الوظيفة")
 
 
 def main():
@@ -1145,22 +1084,14 @@ def main():
     updater.job_queue.run_repeating(close_old_secret_santas, interval=Time.HOUR_6, first=Time.MINUTE_30)
     updater.job_queue.run_repeating(bot_data_cleanup, interval=Time.DAY_1, first=Time.HOUR_6)
 
-    updater.bot.set_my_commands([])  # make sure the bot doesn't have any command set...
-    updater.bot.set_my_commands(  # ...then set the scope for private chats
+    updater.bot.set_my_commands([])  # تأكد من أن البوت ليس لديه أي أمر محدد...
+    updater.bot.set_my_commands(  # ...ثم تعيين النطاق للدردشات الخاصة
         commands=Commands.PRIVATE,
         scope=BotCommandScopeAllPrivateChats()
     )
-    updater.bot.set_my_commands(  # ...then set the scope for group administrators
+    updater.bot.set_my_commands(  # ...ثم تعيين النطاق لمديري المجموعة
         commands=Commands.GROUP_ADMINISTRATORS,
         scope=BotCommandScopeAllChatAdministrators()
     )
 
-    allowed_updates = ["message", "callback_query", "my_chat_member"]  # https://core.telegram.org/bots/api#getupdates
-
-    logger.info("running as @%s, allowed updates: %s", updater.bot.username, allowed_updates)
-    updater.start_polling(drop_pending_updates=True, allowed_updates=allowed_updates)
-    updater.idle()
-
-
-if __name__ == '__main__':
-    main()
+    allowed_updates = ["message", "callback_query", "my_chat_member"]  
